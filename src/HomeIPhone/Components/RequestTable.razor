@@ -1,0 +1,2 @@
+<div class="scroll"><table><thead><tr><th>Time (UTC)</th><th>Source</th><th>Filename</th><th>Result</th><th>Bytes</th></tr></thead><tbody>@foreach (var r in Requests) { <tr><td>@r.TimestampUtc</td><td>@r.SourceIp</td><td class="mono">@r.Filename</td><td>@r.Result</td><td>@r.BytesTransferred</td></tr> }</tbody></table></div>
+@code { [Parameter] public List<TftpEvent> Requests { get; set; } = []; }

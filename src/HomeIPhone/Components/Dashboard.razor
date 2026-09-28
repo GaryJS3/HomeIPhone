@@ -1,0 +1,33 @@
+@page "/"
+@page "/phones"
+@page "/discovered"
+@implements IAsyncDisposable
+@inject PhoneService Service
+@inject NavigationManager Navigation
+<PageTitle>HomeIPhone · Fleet</PageTitle>
+<p class="eyebrow">FLEET OVERVIEW</p><header><div><h1>Phone controller</h1><p class="muted">Provision devices. See what they’re doing.</p></div><a class="button" href="/add">+ Add Phone</a></header>
+@if (phones is null) { <p>Loading inventory…</p> }
+else
+{
+<div class="metrics"><article><small>CONFIGURED</small><strong>@phones.Count</strong></article><article><small>ONLINE</small><strong class="green">@phones.Count(p => p.Online)</strong></article><article><small>OFFLINE / UNKNOWN</small><strong>@phones.Count(p => !p.Online)</strong></article><article><small>DISCOVERED</small><strong>@discovered.Count</strong></article><article><small>TFTP · RETAINED</small><strong>@requestCount</strong></article></div>
+<section><h2>Configured phones <span>@phones.Count</span></h2><div class="scroll"><table><thead><tr><th>Phone / Model</th><th>MAC</th><th>IP</th><th>Status</th><th>Last seen (UTC)</th><th>Firmware</th><th>Saved / served</th></tr></thead><tbody>
+@foreach (var p in phones) { <tr><td><a href="@($"/phones/{p.MacAddress}")">@p.Configuration.FriendlyName</a><small>@p.Configuration.Model</small></td><td class="mono">@p.MacAddress</td><td>@(p.LastKnownIp ?? "Waiting for TFTP")</td><td><span class="badge @(p.Online ? "good" : "")">@(p.Online ? "Online" : "Offline / unknown")</span></td><td>@p.LastSeenUtc</td><td>@(p.Firmware ?? "—")</td><td>@p.ConfigVersion / @(p.LastServedConfigVersion?.ToString() ?? "—")</td></tr> }
+</tbody></table></div>@if (phones.Count == 0) { <p class="empty">No configured phones yet. Add a MAC address or adopt a discovered device below.</p> }</section>
+<section><h2>Discovered devices <span>@discovered.Count</span></h2><p class="muted">Phones appear after a TFTP request. Quick Add lets you name a phone before saving.</p><div class="scroll"><table><thead><tr><th>MAC / IP</th><th>First / last seen (UTC)</th><th>Requests</th><th>Last requested file</th><th></th></tr></thead><tbody>
+@foreach (var d in discovered) { <tr><td class="mono">@d.MacAddress<small>@d.LastKnownIp</small></td><td>@d.FirstSeenUtc<small>@d.LastSeenUtc</small></td><td>@d.RequestCount</td><td>@d.LastRequestedFile @if (Trust(d.LastRequestedFile)) { <p class="warning">Previous Cisco ITL/CTL trust may prevent unsigned configuration.</p> }</td><td><a class="button secondary" href="@($"/add?mac={d.MacAddress}&adopt=true")">Quick Add</a></td></tr> }
+</tbody></table></div>@if (discovered.Count == 0) { <p class="empty">Listening for devices. Set DHCP Option 150 to this server’s LAN address.</p> }</section>
+<section><h2>Recent TFTP activity</h2><RequestTable Requests="requests" /></section>
+}
+@code {
+    private List<Phone>? phones;
+    private List<DiscoveryCandidate> discovered = [];
+    private List<TftpEvent> requests = [];
+    private int requestCount;
+    private readonly CancellationTokenSource stop = new();
+    private Task? refresh;
+    protected override async Task OnInitializedAsync() { await Load(); refresh = RefreshLoop(); }
+    private async Task Load() { phones = await Service.List(); discovered = await Service.Discoveries(); requests = await Service.Requests(); requestCount = await Service.Use(db => Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(db.TftpEvents)); }
+    private async Task RefreshLoop() { try { using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5)); while (await timer.WaitForNextTickAsync(stop.Token)) await InvokeAsync(async () => { await Load(); StateHasChanged(); }); } catch (OperationCanceledException) { } }
+    private static bool Trust(string name) => name.StartsWith("ITL", StringComparison.OrdinalIgnoreCase) || name.StartsWith("CTL", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".sgn", StringComparison.OrdinalIgnoreCase);
+    public async ValueTask DisposeAsync() { stop.Cancel(); if (refresh is not null) await refresh; stop.Dispose(); }
+}

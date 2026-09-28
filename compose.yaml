@@ -1,0 +1,16 @@
+services:
+  homeiphone:
+    build: .
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      PhoneServer__BaseUrl: ${PhoneServer__BaseUrl:-http://10.44.0.33:8080}
+      PhoneServer__TftpBindAddress: ${PhoneServer__TftpBindAddress:-0.0.0.0}
+      PhoneServer__TftpPort: ${PhoneServer__TftpPort:-69}
+      PhoneServer__PollIntervalSeconds: ${PhoneServer__PollIntervalSeconds:-30}
+      PhoneServer__HistoryRetentionHours: ${PhoneServer__HistoryRetentionHours:-72}
+      PhoneServer__DataPath: /data
+    volumes:
+      - homeiphone-data:/data
+volumes:
+  homeiphone-data:

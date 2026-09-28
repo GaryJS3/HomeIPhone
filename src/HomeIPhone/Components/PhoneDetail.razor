@@ -1,0 +1,54 @@
+@page "/phones/{MacAddress}"
+@implements IAsyncDisposable
+@inject PhoneService Service
+@inject PhonePoller Poller
+@inject NavigationManager Navigation
+<PageTitle>Phone · HomeIPhone</PageTitle>
+@if (phone is null) { <h1>Phone</h1><p>@message</p> }
+else
+{
+<p class="eyebrow">DEVICE / @phone.Configuration.Model</p><header><div><h1>@phone.Configuration.FriendlyName</h1><p class="mono">@phone.MacAddress · @(phone.LastKnownIp ?? "IP not learned") · @(phone.Online ? "Online" : "Offline / unknown")</p></div><button class="secondary" @onclick="Refresh" disabled="@busy">Refresh Now</button></header>
+<div class="tabs"><button class="@(configTab ? "secondary" : "")" @onclick="() => configTab = false">Status</button><button class="@(configTab ? "" : "secondary")" @onclick="() => configTab = true">Config</button></div><p role="status">@message</p>
+@if (requests.Any(r => r.Filename.EndsWith(".sgn", StringComparison.OrdinalIgnoreCase) || r.Filename.StartsWith("ITL", StringComparison.OrdinalIgnoreCase) || r.Filename.StartsWith("CTL", StringComparison.OrdinalIgnoreCase))) { <p class="warning">This phone appears to have Cisco security/trust configuration from a previous CUCM environment. It may reject unsigned configuration files until its previous ITL/CTL state is cleared.</p> }
+@if (configTab)
+{
+<ConfigEditor Configuration="edit" Save="Save" Busy="busy" />
+<section><h2>Generated XML</h2><p>Preview reflects the current editor. Saving validates XML before publishing to TFTP.</p><button class="secondary" @onclick="Preview">Preview Generated XML</button><pre>@preview</pre></section>
+<section><h2>Remove phone</h2><label><input type="checkbox" @bind="confirmDelete" /> Confirm removal of saved phone configuration</label><button class="danger" disabled="@(!confirmDelete || busy)" @onclick="Delete">Delete phone</button></section>
+}
+else
+{
+<section><h2>Controller status</h2><dl><dt>Saved / last served version</dt><dd>@phone.ConfigVersion / @(phone.LastServedConfigVersion?.ToString() ?? "Never served")</dd><dt>Config SHA-256</dt><dd class="mono">@phone.ConfigHash</dd><dt>Created</dt><dd>@phone.CreatedUtc UTC</dd><dt>First / last seen</dt><dd>@phone.FirstSeenUtc / @phone.LastSeenUtc UTC</dd><dt>Last HTTP success / failure</dt><dd>@phone.LastHttpSuccessUtc / @phone.LastHttpFailureUtc UTC</dd><dt>Last TFTP request</dt><dd>@phone.LastTftpUtc UTC</dd><dt>Last configuration requested</dt><dd>@phone.LastConfigRequested</dd><dt>Last config served</dt><dd>@phone.LastConfigServedUtc UTC</dd></dl><p class="muted">Served means downloaded, not applied. Online means at least one HTTP/XML endpoint responded.</p></section>
+@if (snapshots.Count == 0) { <section><h2>Waiting for telemetry</h2><p>Once the phone requests its configuration, enable web access and allow HTTP from this server to the phone.</p></section> }
+@foreach (var endpoint in snapshots) { <section><h2>@endpoint.Key</h2><small>Snapshot: @phone.SnapshotUtc UTC</small>@if (!endpoint.Value.Success) { <p class="warning">@endpoint.Value.Error</p> } else { <dl>@foreach (var field in endpoint.Value.Fields) { <dt>@field.Key</dt><dd>@field.Value</dd> }</dl> }</section> }
+<section><h2>Recent history</h2>@foreach (var e in events) { <p class="timeline"><time>@e.TimestampUtc.ToString("MM-dd HH:mm:ss")</time><b>@e.Type</b><span>@e.Message</span></p> }</section><section><h2>TFTP requests</h2><RequestTable Requests="requests" /></section>
+}
+}
+@code {
+    [Parameter] public string MacAddress { get; set; } = "";
+    private Phone? phone;
+    private PhoneConfiguration edit = new();
+    private List<PhoneEvent> events = [];
+    private List<TftpEvent> requests = [];
+    private Dictionary<string, EndpointSnapshot> snapshots = [];
+    private bool configTab, busy, confirmDelete;
+    private string message = "Loading…", preview = "";
+    private readonly CancellationTokenSource stop = new();
+    private Task? refresh;
+    protected override async Task OnParametersSetAsync() { await Load(true); refresh ??= Loop(); }
+    private async Task Load(bool editor = false)
+    {
+        phone = await Service.Get(MacAddress);
+        if (phone is null) { message = "Phone not found."; return; }
+        if (editor) edit = System.Text.Json.JsonSerializer.Deserialize<PhoneConfiguration>(System.Text.Json.JsonSerializer.Serialize(phone.Configuration))!;
+        events = await Service.Events(MacAddress); requests = await Service.Requests(phone.MacAddress);
+        snapshots = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, EndpointSnapshot>>(phone.SnapshotJson) ?? [];
+        if (message == "Loading…") message = "";
+    }
+    private async Task Loop() { try { using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5)); while (await timer.WaitForNextTickAsync(stop.Token)) await InvokeAsync(async () => { await Load(); StateHasChanged(); }); } catch (OperationCanceledException) { } }
+    private async Task Refresh() { busy = true; message = "Polling phone…"; try { await Poller.Poll(MacAddress, stop.Token); await Load(); message = "Poll completed. See endpoint diagnostics below."; } catch (Exception ex) { message = ex.Message; } finally { busy = false; } }
+    private async Task Save() { busy = true; try { await Service.Save(MacAddress, edit); await Load(true); Preview(); message = "Saved. Waiting for the phone’s next TFTP request."; } catch (Exception ex) { message = ex.Message; } finally { busy = false; } }
+    private void Preview() { try { preview = PhoneConfigGenerator.Generate(MacAddress, edit); } catch (Exception ex) { message = ex.Message; } }
+    private async Task Delete() { await Service.Delete(MacAddress); Navigation.NavigateTo("/"); }
+    public async ValueTask DisposeAsync() { stop.Cancel(); if (refresh is not null) await refresh; stop.Dispose(); }
+}

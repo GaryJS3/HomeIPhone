@@ -1,0 +1,14 @@
+@page "/add"
+@inject PhoneService Service
+@inject NavigationManager Navigation
+<PageTitle>Add phone · HomeIPhone</PageTitle><p class="eyebrow">INVENTORY</p><h1>@(Adopt ? "Quick Add" : "Add Phone")</h1><p>Configure identity now. The next TFTP request receives its configuration.</p>
+<section><label>MAC address<input @bind:event="oninput" @bind="mac" readonly="@Adopt" placeholder="00:11:22:33:44:55" /></label><label>Friendly name<input @bind:event="oninput" @bind="name" placeholder="Kitchen phone" maxlength="120" /></label>@if (candidate is not null) { <p>Last known IP: @candidate.LastKnownIp · Model: Unknown</p> }<p class="warning">@error</p><button @onclick="Save" disabled="@busy">Save phone</button> <a href="/">Cancel</a></section>
+@code {
+    [SupplyParameterFromQuery(Name = "mac")] public string? MacQuery { get; set; }
+    [SupplyParameterFromQuery] public bool Adopt { get; set; }
+    private string mac = "", name = "", error = "";
+    private bool busy;
+    private DiscoveryCandidate? candidate;
+    protected override async Task OnParametersSetAsync() { mac = MacQuery ?? ""; if (Adopt) candidate = (await Service.Discoveries()).FirstOrDefault(d => d.MacAddress == mac); }
+    private async Task Save() { busy = true; try { var p = await Service.Add(mac, name, Adopt); Navigation.NavigateTo("/phones/" + p.MacAddress); } catch (Exception ex) { error = ex.Message; } finally { busy = false; } }
+}
