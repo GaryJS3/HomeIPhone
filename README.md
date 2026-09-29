@@ -80,13 +80,14 @@ Install the .NET 10 SDK to run tests or refresh the committed production publish
 
 ```sh
 dotnet test
-dotnet publish src/HomeIPhone/HomeIPhone.csproj -c Release --no-restore -o publish /p:UseAppHost=false
+dotnet restore src/HomeIPhone/HomeIPhone.csproj -r linux-x64
+dotnet publish src/HomeIPhone/HomeIPhone.csproj -c Release -r linux-x64 --self-contained false --no-restore -o publish /p:UseAppHost=false
 dotnet run --project src/HomeIPhone --no-launch-profile -- --PhoneServer:DataPath=./data --PhoneServer:TftpPort=1069 --urls=http://localhost:8080
 ```
 
 Tests exercise real UDP transfers, dropped ACK retry, final short/empty blocks, missing files, discovery/adoption, config versions/hashes, persistence through independent database contexts, validation, parser fixtures and API responses. Fixtures are synthetic representative XML, not captures from physical phones. Container validation additionally requires Linux Docker; Desktop networking is not a substitute for a physical-phone LAN test.
 
-The repository includes the Release `publish/` output used by the Dockerfile. Refresh it after application changes before pushing; this keeps Dockhand’s small Automation host from needing a full SDK build during deployment.
+The repository includes the Release `publish/` output used by the Dockerfile. It is produced for the Linux x64 Automation host and intentionally excludes the .NET runtime. Refresh it after application changes before pushing; this keeps Dockhand’s small Automation host from needing a full SDK build during deployment. Regenerate the output for a different host architecture.
 ## Deployment validation notes
 
 Automation's Hawser 0.2.46 runs Compose in a read-only systemd environment. A local `build:` fails with `mkdir /root/.docker: read-only file system`, so the production Compose file intentionally has no build step. A Git stack marked `synced` only verifies checkout, not a running or healthy container; check `/health` after deployment.
