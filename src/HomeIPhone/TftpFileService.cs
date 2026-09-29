@@ -53,7 +53,8 @@ public sealed class TftpFileService(IOptions<PhoneServerOptions> options)
                 }
             }
             File.Move(temporary, destination.FullName, true);
-            return new TftpFileInfo(destination.Name, length, destination.LastWriteTimeUtc);
+            var saved = new FileInfo(destination.FullName);
+            return new TftpFileInfo(saved.Name, saved.Length, saved.LastWriteTimeUtc);
         }
         finally
         {

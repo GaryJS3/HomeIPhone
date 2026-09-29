@@ -126,6 +126,7 @@ public sealed class TftpFileTests
 
             Assert.Equal("term45.default.loads", saved.Name);
             Assert.Equal(8, saved.Size);
+            Assert.True(saved.LastModifiedUtc > DateTime.UtcNow.AddMinutes(-1));
             Assert.Contains(service.List(), file => file.Name == saved.Name && file.Size == 8);
             await using (var read = service.OpenRead(saved.Name))
             {
