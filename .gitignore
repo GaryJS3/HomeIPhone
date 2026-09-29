@@ -3,6 +3,8 @@
 .tools/
 .vs/
 data/
+PhoneFirmware/
+phone firmware/
 .env
 TestResults/
 *.user

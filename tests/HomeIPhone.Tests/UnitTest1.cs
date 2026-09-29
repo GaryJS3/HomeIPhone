@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace HomeIPhone.Tests;
 
@@ -111,6 +112,44 @@ public sealed class CoreTests
     public void RejectsUnsafePollingTargets(string ip) => Assert.False(CiscoPhoneHttpClient.AllowedIp(ip));
 }
 
+public sealed class TftpFileTests
+{
+    [Fact]
+    public async Task UploadListReadAndDeleteStaticFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "homeiphone-tftp-" + Guid.NewGuid());
+        try
+        {
+            var service = new TftpFileService(Options.Create(new PhoneServerOptions { DataPath = path }));
+            await using var source = new MemoryStream(Encoding.UTF8.GetBytes("firmware"));
+            var saved = await service.SaveAsync("term45.default.loads", source, source.Length);
+
+            Assert.Equal("term45.default.loads", saved.Name);
+            Assert.Equal(8, saved.Size);
+            Assert.Contains(service.List(), file => file.Name == saved.Name && file.Size == 8);
+            await using (var read = service.OpenRead(saved.Name))
+            {
+                Assert.NotNull(read);
+                using var text = new StreamReader(read!);
+                Assert.Equal("firmware", await text.ReadToEndAsync());
+            }
+            Assert.True(service.Delete(saved.Name));
+            Assert.Empty(service.List());
+        }
+        finally
+        {
+            if (Directory.Exists(path)) Directory.Delete(path, true);
+        }
+    }
+
+    [Fact]
+    public async Task UploadRejectsPathTraversal()
+    {
+        var service = new TftpFileService(Options.Create(new PhoneServerOptions { DataPath = Path.Combine(Path.GetTempPath(), "homeiphone-tftp-" + Guid.NewGuid()) }));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.SaveAsync("../firmware.bin", new MemoryStream([1]), 1));
+    }
+}
+
 public sealed class IntegrationTests
 {
     private static async Task<byte[]> Download(int port, string filename, bool dropFirstAck = false)
@@ -154,6 +193,11 @@ public sealed class IntegrationTests
         await File.WriteAllBytesAsync(Path.Combine(app.DataPath, "tftp", "test.bin"), expected);
         var port = app.Services.GetRequiredService<TftpServerService>().BoundPort;
         Assert.Equal(expected, await Download(port, "test.bin", true));
+        using var upload = await http.PostAsync("/api/tftp/files/upload.bin", new ByteArrayContent(expected));
+        upload.EnsureSuccessStatusCode();
+        Assert.Contains((await http.GetFromJsonAsync<List<TftpFileInfo>>("/api/tftp/files"))!, file => file.Name == "upload.bin" && file.Size == length);
+        Assert.Equal(expected, await Download(port, "upload.bin"));
+        Assert.Equal(HttpStatusCode.NoContent, (await http.DeleteAsync("/api/tftp/files/upload.bin")).StatusCode);
         var missing = await Download(port, "missing.bin");
         Assert.Equal(5, missing[1]); Assert.Equal(1, missing[3]);
         Assert.Equal(HttpStatusCode.OK, (await http.GetAsync("/health")).StatusCode);

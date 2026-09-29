@@ -1,0 +1,102 @@
+@page "/firmware"
+@implements IAsyncDisposable
+@using Microsoft.JSInterop
+@inject TftpFileService Files
+@inject IJSRuntime Js
+<PageTitle>Firmware · HomeIPhone</PageTitle>
+<p class="eyebrow">TFTP LIBRARY</p>
+<header><div><h1>Phone firmware</h1><p class="muted">Upload Cisco load, locale, ringtone, and support files to the persistent TFTP directory.</p></div></header>
+<section>
+    <h2>Upload files</h2>
+    <p class="warning">Files are stored on the Automation host under <span class="mono">/data/tftp</span>. They are runtime data and are excluded from Git. Only upload files you are licensed to use.</p>
+    <InputFile OnChange="Upload" multiple />
+    @if (busy) { <p class="muted">Uploading…</p> }
+    @if (!string.IsNullOrWhiteSpace(message)) { <p class="@(error ? "warning" : "success")">@message</p> }
+</section>
+<section>
+    <h2>Available TFTP files <span>@files.Count</span></h2>
+    @if (files.Count == 0)
+    {
+        <p class="empty">No static files uploaded. Dynamic SEP configuration files are served separately.</p>
+    }
+    else
+    {
+        <div class="scroll"><table><thead><tr><th>Filename</th><th>Size</th><th>Modified (UTC)</th><th></th></tr></thead><tbody>
+        @foreach (var file in files)
+        {
+            <tr><td class="mono">@file.Name</td><td>@FormatSize(file.Size)</td><td>@file.LastModifiedUtc</td><td><button class="danger" disabled="@busy" @onclick="() => Delete(file.Name)">Remove</button></td></tr>
+        }
+        </tbody></table></div>
+    }
+</section>
+@code {
+    private List<TftpFileInfo> files = [];
+    private readonly CancellationTokenSource stop = new();
+    private bool busy;
+    private bool error;
+    private string? message;
+
+    protected override void OnInitialized() => Load();
+
+    private void Load() => files = Files.List().ToList();
+
+    private async Task Upload(InputFileChangeEventArgs args)
+    {
+        busy = true;
+        error = false;
+        message = null;
+        var uploaded = 0;
+        try
+        {
+            foreach (var file in args.GetMultipleFiles(500))
+            {
+                await using var stream = file.OpenReadStream(TftpFileService.MaxUploadBytes);
+                await Files.SaveAsync(file.Name, stream, file.Size, stop.Token);
+                uploaded++;
+            }
+            message = $"Uploaded {uploaded} file{(uploaded == 1 ? "" : "s")}.";
+            Load();
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException)
+        {
+            error = true;
+            message = ex.Message;
+            Load();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Delete(string filename)
+    {
+        if (!await Js.InvokeAsync<bool>("confirm", $"Remove {filename} from the TFTP library?")) return;
+        try
+        {
+            Files.Delete(filename);
+            message = $"Removed {filename}.";
+            error = false;
+            Load();
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException)
+        {
+            error = true;
+            message = ex.Message;
+        }
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        >= 1024 * 1024 => $"{bytes / 1024d / 1024d:0.##} MiB",
+        >= 1024 => $"{bytes / 1024d:0.##} KiB",
+        _ => $"{bytes} B"
+    };
+
+    public ValueTask DisposeAsync()
+    {
+        stop.Cancel();
+        stop.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

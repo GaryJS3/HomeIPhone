@@ -26,6 +26,7 @@ builder.Services.AddDbContextFactory<Database>((services, options) =>
 });
 builder.Services.AddSingleton<DatabaseGate>();
 builder.Services.AddSingleton<PhoneService>();
+builder.Services.AddSingleton<TftpFileService>();
 builder.Services.AddSingleton<TftpServerService>();
 builder.Services.AddHostedService(p => p.GetRequiredService<TftpServerService>());
 builder.Services.AddHttpClient<CiscoPhoneHttpClient>().ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false });
@@ -67,6 +68,9 @@ app.MapGet("/api/phones/{mac}/config/preview", async (string mac, PhoneService p
 app.MapPost("/api/phones/{mac}/poll", async (string mac, PhonePoller p, CancellationToken token) => { await p.Poll(mac, token); return Results.Ok(); });
 app.MapGet("/api/phones/{mac}/events", (string mac, PhoneService p) => p.Events(mac));
 app.MapGet("/api/tftp", (string? mac, PhoneService p) => p.Requests(mac is null ? null : Mac.Normalize(mac)));
+app.MapGet("/api/tftp/files", (TftpFileService files) => files.List());
+app.MapPost("/api/tftp/files/{filename}", async (string filename, HttpRequest request, TftpFileService files, CancellationToken token) => Results.Ok(await files.SaveAsync(filename, request.Body, request.ContentLength, token)));
+app.MapDelete("/api/tftp/files/{filename}", (string filename, TftpFileService files) => files.Delete(filename) ? Results.NoContent() : Results.NotFound());
 app.MapGet("/api/discovered", (PhoneService p) => p.Discoveries());
 app.MapPost("/api/discovered/{mac}/adopt", async (string mac, AddPhone request, PhoneService p) => Results.Ok(await p.Add(mac, request.FriendlyName, true)));
 app.MapDelete("/api/discovered/{mac}", async (string mac, PhoneService p) => await p.Delete(mac, true) ? Results.NoContent() : Results.NotFound());

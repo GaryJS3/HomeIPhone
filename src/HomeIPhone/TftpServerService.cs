@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace HomeIPhone;
 
-public sealed class TftpServerService(PhoneService phones, IOptions<PhoneServerOptions> options, ILogger<TftpServerService> logger) : BackgroundService
+public sealed class TftpServerService(PhoneService phones, TftpFileService files, IOptions<PhoneServerOptions> options, ILogger<TftpServerService> logger) : BackgroundService
 {
     private UdpClient? listener;
     private readonly ConcurrentDictionary<string, Task> transfers = new();
@@ -82,12 +82,9 @@ public sealed class TftpServerService(PhoneService phones, IOptions<PhoneServerO
                     stream = new MemoryStream(Encoding.UTF8.GetBytes(PhoneConfigGenerator.Generate(mac, phone.Configuration)));
                 }
             }
-            // Flat files only, and no symbolic links (including the static directory itself).
-            var directory = new DirectoryInfo(Path.Combine(options.Value.DataPath, "tftp"));
-            var file = new FileInfo(Path.Combine(directory.FullName, filename));
-            if (stream is null && file.Exists && !directory.Attributes.HasFlag(FileAttributes.ReparsePoint) && !file.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            if (stream is null)
             {
-                stream = file.OpenRead();
+                stream = files.OpenRead(filename);
             }
             if (stream is null)
             {
