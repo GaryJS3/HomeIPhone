@@ -68,7 +68,7 @@ The current test suite has 56 passing tests. Tests cover XML parsing, generated 
 
 ## Verified SIP profile acceptance (2026-09-29 UTC)
 
-Controller commit `20b9683` and configuration version 9 were verified on the physical CP-7965G. The phone reports the expected Eastern Standard/Daylight timezone and current date/time; its console confirms `Local clock reset to NTP reference.` Services, directory, and idle URLs are populated, with an idle timeout of 30 seconds. The user confirmed the correct clock, name, and `No calling configured` line label. Rendering the automatic idle page has not been visually confirmed.
+Controller commit `20b9683` and configuration version 9 were verified on the physical CP-7965G. The phone reports the expected Eastern Standard/Daylight timezone and current date/time; its console confirms `Local clock reset to NTP reference.` Services, directory, and idle URLs are populated, with an idle timeout of 30 seconds. The user confirmed the correct clock, name, and `No calling configured` line label. The user also confirmed that the automatic HomeIPhone idle message appeared.
 
 The original short profile transferred successfully but threw a `java.lang.NullPointerException` while being applied. Full profiles now include common and SIP sections, explicit security settings, and service URL counterparts. This firmware rejects an empty Call Manager members collection (`minOccurs=1`). The standalone profile therefore includes one placeholder member and a line while disabling registration; it does not supply calling. Profile structure references: https://usecallmanager.nz/sepmac-cnf-xml.html and https://usecallmanager.nz/line-keys.html.
 
