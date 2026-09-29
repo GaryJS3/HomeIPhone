@@ -55,22 +55,48 @@ public static class PhoneConfigGenerator
             return raw.ToString();
         }
         var root = new XElement("device",
-            new XAttribute("{http://www.w3.org/2001/XMLSchema-instance}type", "axl:XIPPhone"),
             new XElement("fullConfig", "true"),
             new XElement("deviceProtocol", config.DeviceProtocol),
+            new XElement("deviceSecurityMode", 1),
+            new XElement("encrConfig", "false"),
             new XElement("devicePool", new XElement("dateTimeSetting",
                 new XElement("dateTemplate", config.DateTemplate),
                 new XElement("timeZone", config.TimeZone),
-                new XElement("ntps", new XElement("ntp", new XElement("name", config.NtpServer), new XElement("ntpMode", "Unicast"))))),
+                new XElement("ntps", new XElement("ntp", new XAttribute("priority", 0), new XElement("name", config.NtpServer), new XElement("ntpMode", "unicast")))),
+                new XElement("callManagerGroup", new XElement("members"))),
+            // The 9.3 SIP firmware dereferences common/SIP profile objects while applying
+            // a full config. A well-formed XML fragment is not a complete phone profile.
+            new XElement("commonProfile", new XElement("phonePassword", ""),
+                new XElement("backgroundImageAccess", "true"), new XElement("callLogBlfEnabled", 0)),
             new XElement("deviceName", "SEP" + Mac.Normalize(mac)),
             new XElement("description", config.Description),
             new XElement("servicesURL", config.ServicesUrl),
             new XElement("directoryURL", config.DirectoryUrl),
             new XElement("idleURL", config.IdleUrl),
+            new XElement("idleTimeout", string.IsNullOrWhiteSpace(config.IdleUrl) ? 0 : 30),
             new XElement("informationURL", config.InformationUrl),
             new XElement("messagesURL", config.MessagesUrl),
             new XElement("vendorConfig", new XElement("webAccess", config.WebAccess ? 0 : 1), new XElement("sshAccess", config.SshAccess ? 0 : 1)),
             new XElement("transportLayerProtocol", 2));
+        foreach (var name in new[] { "authenticationURL", "proxyServerURL", "secureAuthenticationURL", "secureServicesURL", "secureDirectoryURL", "secureIdleURL", "secureInformationURL", "secureMessagesURL" })
+            root.Add(new XElement(name, ""));
+        if (config.DeviceProtocol == "SIP")
+        {
+            root.Element("commonProfile")!.AddBeforeSelf(new XElement("sipProfile",
+                new XElement("sipProxies", new XElement("registerWithProxy", "false")),
+                new XElement("sipCallFeatures", new XElement("cnfJoinEnabled", "false")),
+                new XElement("sipStack", new XElement("sipInviteRetx", 6), new XElement("sipRetx", 10),
+                    new XElement("timerInviteExpires", 180), new XElement("timerRegisterExpires", 3600),
+                    new XElement("timerRegisterDelta", 5), new XElement("timerKeepAliveExpires", 120),
+                    new XElement("timerSubscribeExpires", 120), new XElement("timerSubscribeDelta", 5),
+                    new XElement("timerT1", 500), new XElement("timerT2", 4000),
+                    new XElement("maxRedirects", 70), new XElement("remotePartyID", "false"), new XElement("userInfo", "None")),
+                new XElement("phoneLabel", string.IsNullOrWhiteSpace(config.FriendlyName) ? "HomeIPhone" : config.FriendlyName),
+                new XElement("sipLines"), new XElement("voipControlPort", 5060),
+                new XElement("startMediaPort", 16384), new XElement("stopMediaPort", 32766),
+                new XElement("natEnabled", "false"), new XElement("natAddress", ""),
+                new XElement("dialTemplate", ""), new XElement("softKeyFile", "")));
+        }
         if (!string.IsNullOrWhiteSpace(firmwareLoad))
         {
             root.Add(new XElement("loadInformation", firmwareLoad));

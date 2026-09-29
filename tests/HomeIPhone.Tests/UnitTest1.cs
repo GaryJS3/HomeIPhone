@@ -74,13 +74,45 @@ public sealed class CoreTests
     {
         var xml = PhoneConfigGenerator.Generate("001122334455", new() { ServicesUrl = "http://192.168.1.10/services?a=1&b=2", Description = "Kitchen & Hall", FirmwareLoad = "SIP45.9-2-1S.loads" });
         var doc = PhoneConfigGenerator.Parse(xml);
-        Assert.Equal("SEP001122334455", doc.Root!.Element("deviceName")!.Value);
+        Assert.Equal("device", doc.Root!.Name.LocalName);
+        Assert.Empty(doc.Root.Attributes());
         Assert.Equal("SCCP", doc.Root.Element("deviceProtocol")!.Value);
         Assert.Equal("true", doc.Root.Element("fullConfig")!.Value);
         Assert.Equal("http://192.168.1.10/services?a=1&b=2", doc.Root.Element("servicesURL")!.Value);
         Assert.Equal("SIP45.9-2-1S", doc.Root.Element("loadInformation")!.Value);
         Assert.Equal("0", doc.Root.Element("vendorConfig")!.Element("webAccess")!.Value);
         Assert.Equal("1", doc.Root.Element("vendorConfig")!.Element("sshAccess")!.Value);
+    }
+
+    [Theory]
+    [InlineData("Cisco 7945G")]
+    [InlineData("Cisco 7965G")]
+    public void SipProvisioningIncludesProfilesWithoutRegistering(string model)
+    {
+        var root = PhoneConfigGenerator.Parse(PhoneConfigGenerator.Generate("001122334455", new()
+        {
+            Model = model, DeviceProtocol = "SIP", FriendlyName = "Kitchen & Hall",
+            IdleUrl = "http://192.168.1.10/phone/idle", NtpServer = "192.168.1.1"
+        })).Root!;
+        Assert.NotNull(root.Element("commonProfile")!.Element("phonePassword"));
+        Assert.NotNull(root.Element("devicePool")!.Element("callManagerGroup")!.Element("members"));
+        var sip = root.Element("sipProfile")!;
+        Assert.Equal("false", sip.Element("sipProxies")!.Element("registerWithProxy")!.Value);
+        Assert.Empty(sip.Element("sipLines")!.Elements());
+        Assert.Equal("Kitchen & Hall", sip.Element("phoneLabel")!.Value);
+        Assert.Equal("30", root.Element("idleTimeout")!.Value);
+        var ntp = root.Element("devicePool")!.Element("dateTimeSetting")!.Element("ntps")!.Element("ntp")!;
+        Assert.Equal("192.168.1.1", ntp.Element("name")!.Value);
+        Assert.Equal("unicast", ntp.Element("ntpMode")!.Value);
+        Assert.NotNull(root.Element("secureDirectoryURL"));
+    }
+
+    [Fact]
+    public void SccpDoesNotGetSipProfileAndEmptyIdleUrlDisablesIdleScreen()
+    {
+        var root = PhoneConfigGenerator.Parse(PhoneConfigGenerator.Generate("001122334455", new())).Root!;
+        Assert.Null(root.Element("sipProfile"));
+        Assert.Equal("0", root.Element("idleTimeout")!.Value);
     }
 
     [Theory]
