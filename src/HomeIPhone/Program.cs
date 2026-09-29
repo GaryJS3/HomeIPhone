@@ -69,7 +69,7 @@ app.MapPost("/api/phones/{mac}/poll", async (string mac, PhonePoller p, Cancella
 app.MapGet("/api/phones/{mac}/events", (string mac, PhoneService p) => p.Events(mac));
 app.MapGet("/api/tftp", (string? mac, PhoneService p) => p.Requests(mac is null ? null : Mac.Normalize(mac)));
 app.MapGet("/api/tftp/files", (TftpFileService files) => files.List());
-app.MapPost("/api/tftp/files/{filename}", async (string filename, HttpRequest request, TftpFileService files, CancellationToken token) => Results.Ok(await files.SaveAsync(filename, request.Body, request.ContentLength, token)));
+app.MapPost("/api/tftp/files/{filename}", async (string filename, HttpRequest request, TftpFileService files, CancellationToken token) => Results.Ok(await files.ImportAsync(filename, request.Body, request.ContentLength, token)));
 app.MapDelete("/api/tftp/files/{filename}", (string filename, TftpFileService files) => files.Delete(filename) ? Results.NoContent() : Results.NotFound());
 app.MapGet("/api/discovered", (PhoneService p) => p.Discoveries());
 app.MapPost("/api/discovered/{mac}/adopt", async (string mac, AddPhone request, PhoneService p) => Results.Ok(await p.Add(mac, request.FriendlyName, true)));

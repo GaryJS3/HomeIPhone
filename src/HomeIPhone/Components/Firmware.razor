@@ -8,7 +8,7 @@
 <header><div><h1>Phone firmware</h1><p class="muted">Upload Cisco load, locale, ringtone, and support files to the persistent TFTP directory.</p></div></header>
 <section>
     <h2>Upload files</h2>
-    <p class="warning">Files are stored on the Automation host under <span class="mono">/data/tftp</span>. They are runtime data and are excluded from Git. Only upload files you are licensed to use.</p>
+    <p class="warning">Files are stored on the Automation host under <span class="mono">/data/tftp</span>. They are runtime data and are excluded from Git. Only upload files you are licensed to use. <span class="mono">.tar</span>, <span class="mono">.tar.gz</span>, and <span class="mono">.tgz</span> archives are extracted automatically; the archive itself is not kept.</p>
     <InputFile OnChange="Upload" multiple />
     @if (busy) { <p class="muted">Uploading…</p> }
     @if (!string.IsNullOrWhiteSpace(message)) { <p class="@(error ? "warning" : "success")">@message</p> }
@@ -48,13 +48,18 @@
         var uploaded = 0;
         try
         {
+            var extracted = 0;
+            var archives = 0;
             foreach (var file in args.GetMultipleFiles(500))
             {
                 await using var stream = file.OpenReadStream(TftpFileService.MaxUploadBytes);
-                await Files.SaveAsync(file.Name, stream, file.Size, stop.Token);
+                var result = await Files.ImportAsync(file.Name, stream, file.Size, stop.Token);
+                if (result.Extracted) { archives++; extracted += result.Files.Count; }
                 uploaded++;
             }
-            message = $"Uploaded {uploaded} file{(uploaded == 1 ? "" : "s")}.";
+            message = archives == 0
+                ? $"Uploaded {uploaded} file{(uploaded == 1 ? "" : "s")}."
+                : $"Uploaded {uploaded} item{(uploaded == 1 ? "" : "s")}; extracted {extracted} TFTP file{(extracted == 1 ? "" : "s")} from {archives} archive{(archives == 1 ? "" : "s")}.";
             Load();
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException)

@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Formats.Tar;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
@@ -148,6 +150,91 @@ public sealed class TftpFileTests
     {
         var service = new TftpFileService(Options.Create(new PhoneServerOptions { DataPath = Path.Combine(Path.GetTempPath(), "homeiphone-tftp-" + Guid.NewGuid()) }));
         await Assert.ThrowsAsync<ArgumentException>(() => service.SaveAsync("../firmware.bin", new MemoryStream([1]), 1));
+    }
+
+    [Fact]
+    public async Task ImportExtractsTarFilesAndDiscardsArchive()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "homeiphone-tftp-" + Guid.NewGuid());
+        try
+        {
+            var service = new TftpFileService(Options.Create(new PhoneServerOptions { DataPath = path }));
+            await using var archive = new MemoryStream();
+            using (var writer = new TarWriter(archive, TarEntryFormat.Pax, leaveOpen: true))
+            {
+                var entry = new PaxTarEntry(TarEntryType.RegularFile, "cmterm/term45.default.loads")
+                {
+                    DataStream = new MemoryStream(Encoding.UTF8.GetBytes("firmware"))
+                };
+                writer.WriteEntry(entry);
+            }
+            archive.Position = 0;
+
+            var result = await service.ImportAsync("cmterm.tar", archive, archive.Length);
+
+            Assert.True(result.Extracted);
+            Assert.Single(result.Files);
+            Assert.Equal("term45.default.loads", result.Files[0].Name);
+            Assert.Equal("firmware", await File.ReadAllTextAsync(Path.Combine(path, "tftp", result.Files[0].Name)));
+            Assert.DoesNotContain(service.List(), file => file.Name.EndsWith(".tar", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(path)) Directory.Delete(path, true);
+        }
+    }
+
+    [Fact]
+    public async Task ImportRejectsUnsafeTarPaths()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "homeiphone-tftp-" + Guid.NewGuid());
+        try
+        {
+            var service = new TftpFileService(Options.Create(new PhoneServerOptions { DataPath = path }));
+            await using var archive = new MemoryStream();
+            using (var writer = new TarWriter(archive, TarEntryFormat.Pax, leaveOpen: true))
+            {
+                var entry = new PaxTarEntry(TarEntryType.RegularFile, "../phones.db")
+                {
+                    DataStream = new MemoryStream([1])
+                };
+                writer.WriteEntry(entry);
+            }
+            archive.Position = 0;
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => service.ImportAsync("bad.tar", archive, archive.Length));
+            Assert.False(File.Exists(Path.Combine(path, "phones.db")));
+        }
+        finally
+        {
+            if (Directory.Exists(path)) Directory.Delete(path, true);
+        }
+    }
+
+    [Fact]
+    public async Task ImportExtractsGzipTar()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "homeiphone-tftp-" + Guid.NewGuid());
+        try
+        {
+            var service = new TftpFileService(Options.Create(new PhoneServerOptions { DataPath = path }));
+            await using var archive = new MemoryStream();
+            await using (var gzip = new GZipStream(archive, CompressionMode.Compress, leaveOpen: true))
+            {
+                using var writer = new TarWriter(gzip, TarEntryFormat.Pax, leaveOpen: true);
+                writer.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, "term45.loads") { DataStream = new MemoryStream([1, 2, 3]) });
+            }
+            archive.Position = 0;
+
+            var result = await service.ImportAsync("cmterm.tgz", archive, archive.Length);
+
+            Assert.True(result.Extracted);
+            Assert.Equal([1, 2, 3], await File.ReadAllBytesAsync(Path.Combine(path, "tftp", "term45.loads")));
+        }
+        finally
+        {
+            if (Directory.Exists(path)) Directory.Delete(path, true);
+        }
     }
 }
 

@@ -19,7 +19,7 @@ Linux host networking is intentional: TFTP listens on UDP/69 and sends each tran
 
 The named volume `homeiphone-data` mounts at `/data`: `phones.db`, SQLite journal files and optional `tftp/` files. Recreating the container retains inventory and configuration. Never use `docker compose down -v` unless you intend to erase data. Back up the volume with the app stopped, or use SQLite's online backup facility. EF migrations run at startup.
 
-Use the **Firmware** page to upload licensed Cisco firmware, locale, ringtone, and support files. Uploads are stored in `/data/tftp`, are served as flat read-only TFTP files, and are not part of Git. The local `PhoneFirmware/` folder is ignored by the repository so contract-provided files are not redistributed.
+Use the **Firmware** page to upload licensed Cisco firmware, locale, ringtone, and support files. Uploads are stored in `/data/tftp`, are served as flat read-only TFTP files, and are not part of Git. `.tar`, `.tar.gz`, and `.tgz` uploads are extracted automatically; only regular files with safe flat names are imported, and the archive is discarded. The local `PhoneFirmware/` folder is ignored by the repository so contract-provided files are not redistributed.
 
 | Environment variable | Default | Purpose |
 | --- | --- | --- |
@@ -70,7 +70,7 @@ Cisco references: [Remote monitoring guide](https://www.cisco.com/c/en/us/td/doc
 - `POST /api/phones/{mac}/poll`
 - `GET /api/phones/{mac}/events`
 - `GET /api/tftp?mac=001122334455` — omit MAC for all recent requests
-- `GET /api/tftp/files`, `POST /api/tftp/files/{filename}`, `DELETE /api/tftp/files/{filename}` — manage flat static TFTP files; POST streams the request body to `/data/tftp`
+- `GET /api/tftp/files`, `POST /api/tftp/files/{filename}`, `DELETE /api/tftp/files/{filename}` — manage static TFTP files; POST streams regular files to `/data/tftp` and automatically extracts `.tar`, `.tar.gz`, and `.tgz` archives
 - `GET /api/discovered`
 - `POST /api/discovered/{mac}/adopt` — body: `{ "friendlyName": "Kitchen" }`
 - `DELETE /api/discovered/{mac}` — later requests can rediscover the phone
