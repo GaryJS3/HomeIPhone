@@ -1,6 +1,8 @@
 services:
   homeiphone:
-    build: .
+    image: mcr.microsoft.com/dotnet/aspnet:10.0
+    working_dir: /app
+    command: ["dotnet", "HomeIPhone.dll"]
     restart: unless-stopped
     network_mode: host
     environment:
@@ -11,6 +13,7 @@ services:
       PhoneServer__HistoryRetentionHours: ${PhoneServer__HistoryRetentionHours:-72}
       PhoneServer__DataPath: /data
     volumes:
+      - ./publish:/app:ro
       - homeiphone-data:/data
 volumes:
   homeiphone-data:

@@ -13,7 +13,7 @@ docker compose up -d
 curl -f http://localhost:8080/health
 ```
 
-For Dockhand, add this repository as a Git stack on the target environment, branch `main`, compose path `compose.yaml`, build context repository root. Enable **Build on deploy** and automatic Git updates. Set `PhoneServer__BaseUrl` in the stack environment to an address phones can reach. The included default targets Automation at `http://10.44.0.33:8080`; change it for other hosts. No registry image or extra service is needed.
+For Dockhand, add this repository as a Git stack on the target environment, branch `main`, compose path `compose.yaml`, and enable automatic Git updates. The production Compose file pulls the official ASP.NET runtime image and mounts the committed `publish/` output read-only, so the Docker host does not need to build the SDK image. Set `PhoneServer__BaseUrl` in the stack environment to an address phones can reach. The included default targets Automation at `http://10.44.0.33:8080`; change it for other hosts. No registry image or extra service is needed.
 
 Linux host networking is intentional: TFTP listens on UDP/69 and sends each transfer from an ephemeral UDP port. Open the appropriate stateful firewall path between the phone VLAN and host; publishing only UDP/69 through Docker bridge networking is insufficient. The container runs as root for reliable privileged-port binding and named-volume initialization. HTTP uses TCP/8080. Check for port conflicts before deploying. One replica only.
 
@@ -89,6 +89,4 @@ Tests exercise real UDP transfers, dropped ACK retry, final short/empty blocks, 
 The repository includes the Release `publish/` output used by the Dockerfile. Refresh it after application changes before pushing; this keeps Dockhand’s small Automation host from needing a full SDK build during deployment.
 ## Deployment validation notes
 
-Automation's Hawser 0.2.46 runs Compose in a read-only systemd environment. Its default Docker BuildKit path fails with `mkdir /root/.docker: read-only file system`. The HomeIPhone Dockhand stack uses the **stack-level** environment variable `DOCKER_BUILDKIT=0` to use the legacy builder without changing host filesystem protection. Do not add this to the application container's environment; it is a Compose build setting.
-
-Hawser 0.2.46 also applies `REQUEST_TIMEOUT` to Compose builds. Its short default can terminate an otherwise successful build before image layers finish committing. Set an adequate agent request timeout or upgrade Hawser to a release with a separate Compose timeout before relying on automatic builds. A Git stack marked `synced` only verifies checkout, not a running or healthy container.
+Automation's Hawser 0.2.46 runs Compose in a read-only systemd environment. A local `build:` fails with `mkdir /root/.docker: read-only file system`, so the production Compose file intentionally has no build step. A Git stack marked `synced` only verifies checkout, not a running or healthy container; check `/health` after deployment.
