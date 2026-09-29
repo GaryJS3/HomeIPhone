@@ -76,14 +76,17 @@ Invalid input returns 400, missing phone/candidate 404, duplicate MAC 409. Raw X
 
 ## Develop / verify
 
-Install the .NET 10 SDK, then:
+Install the .NET 10 SDK to run tests or refresh the committed production publish output, then:
 
 ```sh
 dotnet test
+dotnet publish src/HomeIPhone/HomeIPhone.csproj -c Release --no-restore -o publish /p:UseAppHost=false
 dotnet run --project src/HomeIPhone --no-launch-profile -- --PhoneServer:DataPath=./data --PhoneServer:TftpPort=1069 --urls=http://localhost:8080
 ```
 
 Tests exercise real UDP transfers, dropped ACK retry, final short/empty blocks, missing files, discovery/adoption, config versions/hashes, persistence through independent database contexts, validation, parser fixtures and API responses. Fixtures are synthetic representative XML, not captures from physical phones. Container validation additionally requires Linux Docker; Desktop networking is not a substitute for a physical-phone LAN test.
+
+The repository includes the Release `publish/` output used by the Dockerfile. Refresh it after application changes before pushing; this keeps Dockhand’s small Automation host from needing a full SDK build during deployment.
 ## Deployment validation notes
 
 Automation's Hawser 0.2.46 runs Compose in a read-only systemd environment. Its default Docker BuildKit path fails with `mkdir /root/.docker: read-only file system`. The HomeIPhone Dockhand stack uses the **stack-level** environment variable `DOCKER_BUILDKIT=0` to use the legacy builder without changing host filesystem protection. Do not add this to the application container's environment; it is a Compose build setting.

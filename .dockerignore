@@ -5,3 +5,7 @@
 data
 .env
 TestResults
+src/HomeIPhone/bin
+src/HomeIPhone/obj
+tests/HomeIPhone.Tests/bin
+tests/HomeIPhone.Tests/obj
