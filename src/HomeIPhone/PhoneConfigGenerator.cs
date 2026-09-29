@@ -40,6 +40,10 @@ public static class PhoneConfigGenerator
         {
             throw new ArgumentException("Unsupported model.");
         }
+        if (config.DeviceProtocol is not ("SCCP" or "SIP"))
+        {
+            throw new ArgumentException("Device protocol must be SCCP or SIP.");
+        }
         if (!string.IsNullOrWhiteSpace(config.RawOverrideXml))
         {
             var raw = Parse(config.RawOverrideXml);
@@ -51,7 +55,8 @@ public static class PhoneConfigGenerator
         }
         var root = new XElement("device",
             new XAttribute("{http://www.w3.org/2001/XMLSchema-instance}type", "axl:XIPPhone"),
-            new XElement("deviceProtocol", "SIP"),
+            new XElement("fullConfig", "true"),
+            new XElement("deviceProtocol", config.DeviceProtocol),
             new XElement("devicePool", new XElement("dateTimeSetting",
                 new XElement("dateTemplate", config.DateTemplate),
                 new XElement("timeZone", config.TimeZone),

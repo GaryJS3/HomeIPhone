@@ -64,6 +64,7 @@ public sealed class PhoneConfiguration
     public string Description { get; set; } = "";
     public string Location { get; set; } = "";
     public string Model { get; set; } = "Unknown";
+    public string DeviceProtocol { get; set; } = "SCCP";
     public string ServicesUrl { get; set; } = "";
     public string DirectoryUrl { get; set; } = "";
     public string IdleUrl { get; set; } = "";
