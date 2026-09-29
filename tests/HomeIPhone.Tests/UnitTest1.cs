@@ -95,10 +95,11 @@ public sealed class CoreTests
             IdleUrl = "http://192.168.1.10/phone/idle", NtpServer = "192.168.1.1"
         })).Root!;
         Assert.NotNull(root.Element("commonProfile")!.Element("phonePassword"));
-        Assert.NotNull(root.Element("devicePool")!.Element("callManagerGroup")!.Element("members"));
+        var member = Assert.Single(root.Element("devicePool")!.Element("callManagerGroup")!.Element("members")!.Elements("member"));
+        Assert.Equal("0.0.0.0", member.Element("callManager")!.Element("processNodeName")!.Value);
         var sip = root.Element("sipProfile")!;
         Assert.Equal("false", sip.Element("sipProxies")!.Element("registerWithProxy")!.Value);
-        Assert.Empty(sip.Element("sipLines")!.Elements());
+        Assert.Equal("9", Assert.Single(sip.Element("sipLines")!.Elements("line")).Element("featureID")!.Value);
         Assert.Equal("Kitchen & Hall", sip.Element("phoneLabel")!.Value);
         Assert.Equal("30", root.Element("idleTimeout")!.Value);
         var ntp = root.Element("devicePool")!.Element("dateTimeSetting")!.Element("ntps")!.Element("ntp")!;

@@ -63,7 +63,12 @@ public static class PhoneConfigGenerator
                 new XElement("dateTemplate", config.DateTemplate),
                 new XElement("timeZone", config.TimeZone),
                 new XElement("ntps", new XElement("ntp", new XAttribute("priority", 0), new XElement("name", config.NtpServer), new XElement("ntpMode", "unicast")))),
-                new XElement("callManagerGroup", new XElement("members"))),
+                // Firmware requires a member even for a non-registering standalone phone.
+                // Use the unspecified address rather than advertising a nonexistent PBX.
+                new XElement("callManagerGroup", new XElement("members",
+                    new XElement("member", new XAttribute("priority", 0), new XElement("callManager",
+                        new XElement("ports", new XElement("ethernetPhonePort", 2000), new XElement("sipPort", 5060), new XElement("securedSipPort", 5061)),
+                        new XElement("processNodeName", "0.0.0.0")))))),
             // The 9.3 SIP firmware dereferences common/SIP profile objects while applying
             // a full config. A well-formed XML fragment is not a complete phone profile.
             new XElement("commonProfile", new XElement("phonePassword", ""),
@@ -92,7 +97,13 @@ public static class PhoneConfigGenerator
                     new XElement("timerT1", 500), new XElement("timerT2", 4000),
                     new XElement("maxRedirects", 70), new XElement("remotePartyID", "false"), new XElement("userInfo", "None")),
                 new XElement("phoneLabel", string.IsNullOrWhiteSpace(config.FriendlyName) ? "HomeIPhone" : config.FriendlyName),
-                new XElement("sipLines"), new XElement("voipControlPort", 5060),
+                new XElement("sipLines", new XElement("line", new XAttribute("button", 1),
+                    new XElement("featureID", 9), new XElement("featureLabel", "No calling configured"),
+                    new XElement("proxy", "USECALLMANAGER"), new XElement("port", 5060),
+                    new XElement("name", "HomeIPhone"), new XElement("displayName", "HomeIPhone"),
+                    new XElement("authName", ""), new XElement("authPassword", ""),
+                    new XElement("contact", "HomeIPhone"), new XElement("messagesNumber", ""))),
+                new XElement("voipControlPort", 5060),
                 new XElement("startMediaPort", 16384), new XElement("stopMediaPort", 32766),
                 new XElement("natEnabled", "false"), new XElement("natAddress", ""),
                 new XElement("dialTemplate", ""), new XElement("softKeyFile", "")));
