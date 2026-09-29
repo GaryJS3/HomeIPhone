@@ -84,3 +84,8 @@ dotnet run --project src/HomeIPhone --no-launch-profile -- --PhoneServer:DataPat
 ```
 
 Tests exercise real UDP transfers, dropped ACK retry, final short/empty blocks, missing files, discovery/adoption, config versions/hashes, persistence through independent database contexts, validation, parser fixtures and API responses. Fixtures are synthetic representative XML, not captures from physical phones. Container validation additionally requires Linux Docker; Desktop networking is not a substitute for a physical-phone LAN test.
+## Deployment validation notes
+
+Automation's Hawser 0.2.46 runs Compose in a read-only systemd environment. Its default Docker BuildKit path fails with `mkdir /root/.docker: read-only file system`. The HomeIPhone Dockhand stack uses the **stack-level** environment variable `DOCKER_BUILDKIT=0` to use the legacy builder without changing host filesystem protection. Do not add this to the application container's environment; it is a Compose build setting.
+
+Hawser 0.2.46 also applies `REQUEST_TIMEOUT` to Compose builds. Its short default can terminate an otherwise successful build before image layers finish committing. Set an adequate agent request timeout or upgrade Hawser to a release with a separate Compose timeout before relying on automatic builds. A Git stack marked `synced` only verifies checkout, not a running or healthy container.

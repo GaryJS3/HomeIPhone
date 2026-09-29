@@ -201,9 +201,37 @@ public sealed class IntegrationTests
         await using var db = new Database(new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<Database>().UseSqliteForTest(app.DataPath));
         Assert.Equal("Kitchen", (await db.Phones.FindAsync("001122334455"))!.Configuration.FriendlyName);
         Assert.Contains("Phone controller", await http.GetStringAsync("/"));
+        Assert.Equal(HttpStatusCode.OK, (await http.GetAsync("/_framework/blazor.web.js")).StatusCode);
         Assert.Contains("CiscoIPPhoneMenu", await http.GetStringAsync("/phone/services"));
     }
 
+    [Fact]
+    public async Task UnacknowledgedConfigNeverMarksVersionServed()
+    {
+        await using var app = new AppFactory();
+        using var http = app.CreateClient();
+        var service = app.Services.GetRequiredService<PhoneService>();
+        var phone = await service.Add("020000000099", "Timeout test");
+        phone.Configuration.RawOverrideXml = "<device><description>Test</description></device>";
+        await service.Save(phone.MacAddress, phone.Configuration);
+        var port = app.Services.GetRequiredService<TftpServerService>().BoundPort;
+        using var udp = new UdpClient();
+        await udp.SendAsync(new byte[] { 0, 1 }.Concat(Encoding.ASCII.GetBytes("SEP020000000099.cnf.xml\0octet\0")).ToArray(), new IPEndPoint(IPAddress.Loopback, port));
+        using var timeout = new CancellationTokenSource(10000);
+        var first = await udp.ReceiveAsync(timeout.Token);
+        Assert.Equal(3, first.Buffer[1]);
+        using var stranger = new UdpClient();
+        await stranger.SendAsync(new byte[] { 0, 4, 0, 1 }, first.RemoteEndPoint);
+        Assert.Equal(5, (await stranger.ReceiveAsync(timeout.Token)).Buffer[3]);
+        // Leave every server retry unacknowledged and wait for the recorded failure.
+        for (var i = 0; i < 70; i++)
+        {
+            if ((await service.Requests(phone.MacAddress)).Any(r => r.Result.StartsWith("Failed"))) break;
+            await Task.Delay(100);
+        }
+        Assert.Null((await service.Get(phone.MacAddress))!.LastServedConfigVersion);
+        Assert.Contains(await service.Requests(phone.MacAddress), r => r.Result.Contains("ACK timeout"));
+    }
     [Fact]
     public async Task RejectsWritesAndTraversal()
     {
