@@ -72,13 +72,13 @@ public sealed class CoreTests
     [Fact]
     public void GeneratesValidEscapedXml()
     {
-        var xml = PhoneConfigGenerator.Generate("001122334455", new() { ServicesUrl = "http://192.168.1.10/services?a=1&b=2", Description = "Kitchen & Hall" });
+        var xml = PhoneConfigGenerator.Generate("001122334455", new() { ServicesUrl = "http://192.168.1.10/services?a=1&b=2", Description = "Kitchen & Hall", FirmwareLoad = "SIP45.9-2-1S.loads" });
         var doc = PhoneConfigGenerator.Parse(xml);
         Assert.Equal("SEP001122334455", doc.Root!.Element("deviceName")!.Value);
         Assert.Equal("SCCP", doc.Root.Element("deviceProtocol")!.Value);
         Assert.Equal("true", doc.Root.Element("fullConfig")!.Value);
         Assert.Equal("http://192.168.1.10/services?a=1&b=2", doc.Root.Element("servicesURL")!.Value);
-        Assert.Null(doc.Root.Element("loadInformation"));
+        Assert.Equal("SIP45.9-2-1S", doc.Root.Element("loadInformation")!.Value);
         Assert.Equal("0", doc.Root.Element("vendorConfig")!.Element("webAccess")!.Value);
         Assert.Equal("1", doc.Root.Element("vendorConfig")!.Element("sshAccess")!.Value);
     }

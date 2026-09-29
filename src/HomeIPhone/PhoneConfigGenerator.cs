@@ -32,7 +32,8 @@ public static class PhoneConfigGenerator
                 throw new ArgumentException("Phone URLs must be absolute HTTP or HTTPS URLs.");
             }
         }
-        if (config.FriendlyName.Length > 120 || config.Description.Length > 512 || config.Location.Length > 120 || config.FirmwareLoad.Length > 128 || config.NtpServer.Length > 253 || config.TimeZone.Length > 128 || config.DateTemplate.Length > 32)
+        var firmwareLoad = NormalizeFirmwareLoad(config.FirmwareLoad);
+        if (config.FriendlyName.Length > 120 || config.Description.Length > 512 || config.Location.Length > 120 || firmwareLoad.Length > 128 || config.NtpServer.Length > 253 || config.TimeZone.Length > 128 || config.DateTemplate.Length > 32)
         {
             throw new ArgumentException("One or more configuration fields exceed their size limit.");
         }
@@ -70,12 +71,16 @@ public static class PhoneConfigGenerator
             new XElement("messagesURL", config.MessagesUrl),
             new XElement("vendorConfig", new XElement("webAccess", config.WebAccess ? 0 : 1), new XElement("sshAccess", config.SshAccess ? 0 : 1)),
             new XElement("transportLayerProtocol", 2));
-        if (!string.IsNullOrWhiteSpace(config.FirmwareLoad))
+        if (!string.IsNullOrWhiteSpace(firmwareLoad))
         {
-            root.Add(new XElement("loadInformation", config.FirmwareLoad));
+            root.Add(new XElement("loadInformation", firmwareLoad));
         }
         return new XDocument(root).ToString();
     }
+
+    private static string NormalizeFirmwareLoad(string firmwareLoad) => firmwareLoad.EndsWith(".loads", StringComparison.OrdinalIgnoreCase)
+        ? firmwareLoad[..^6]
+        : firmwareLoad;
 
     public static string Hash(string xml) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(xml)));
 }
