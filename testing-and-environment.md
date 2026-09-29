@@ -64,7 +64,17 @@ dotnet restore src/HomeIPhone/HomeIPhone.csproj -r linux-x64
 dotnet publish src/HomeIPhone/HomeIPhone.csproj -c Release -r linux-x64 --self-contained false --no-restore -o publish /p:UseAppHost=false
 ```
 
-The current test suite has 53 passing tests. Tests cover XML parsing, generated profiles, validation, persistence, discovery/adoption, TFTP transfers and retries, archive extraction, and API behavior. They do not prove hardware firmware acceptance.
+The current test suite has 56 passing tests. Tests cover XML parsing, generated profiles, validation, persistence, discovery/adoption, TFTP transfers and retries, archive extraction, and API behavior. They do not prove hardware firmware acceptance.
+
+## Verified SIP profile acceptance (2026-09-29 UTC)
+
+Controller commit `20b9683` and configuration version 9 were verified on the physical CP-7965G. The phone reports the expected Eastern Standard/Daylight timezone and current date/time; its console confirms `Local clock reset to NTP reference.` Services, directory, and idle URLs are populated, with an idle timeout of 30 seconds. The user confirmed the correct clock, name, and `No calling configured` line label. Rendering the automatic idle page has not been visually confirmed.
+
+The original short profile transferred successfully but threw a `java.lang.NullPointerException` while being applied. Full profiles now include common and SIP sections, explicit security settings, and service URL counterparts. This firmware rejects an empty Call Manager members collection (`minOccurs=1`). The standalone profile therefore includes one placeholder member and a line while disabling registration; it does not supply calling. Profile structure references: https://usecallmanager.nz/sepmac-cnf-xml.html and https://usecallmanager.nz/line-keys.html.
+
+Once the profile applied, the phone honored the previously saved firmware load, downloaded the manifest and all five images, then restarted. Its reported version changed from `*term65.default*` to `*SIP45.9-3-1SR4-1S*`. Allow this sequence to finish before interpreting temporary HTTP unavailability as failure. Routine missing ITL/CTL requests alone do not prove a trust rejection: this phone explicitly approved the unsigned configuration.
+
+Deploy through Dockhand's Git-stack deployment route, not just the ordinary compose deploy route after a Git sync. Verify the published DLL hash in `/data/stacks/homeiphone/publish` against the committed build, and verify the live generated XML. Re-save the existing phone configuration after changing the generator so its version/hash describe the new XML.
 
 ## Deployment verification
 
